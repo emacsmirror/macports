@@ -85,27 +85,43 @@
   "A minor mode allowing easy access to MacPorts commands via `macports'."
   :keymap macports-dispatch-mode-map)
 
-(eval-and-compile
-  (defconst macports-core--output-flags-infix
-    ["Output"
-     ("v" "Verbose" "-v")
-     ("d" "Debug" "-d")
-     ("q" "Quiet" "-q")
-     ("N" "Non-interactive" "-N")]
-    "Global flags for the `port` command."))
+;; TODO(aaron): Maintain this until we bump transient requirement to 0.9.0+, at
+;; which point we can just use `transient-define-group'.
+(defmacro macports--define-group (symbol group &optional docstring)
+  "Define SYMBOL as a transient GROUP described by DOCSTRING.
 
-(eval-and-compile
-  (defconst macports-core--sources-flags-infix
-    ["Sources"
-     ("s" "Source-only mode" "-s")
-     ("b" "Binary-only mode" "-b")]
-    "Source-related flags for the `port` command."))
+Use `transient-define-group' (introduced in Transient v0.9.0) if the macro is
+available; otherwise, assume that the old layout is supported and use `defconst'
+to define the group, instead."
+  (declare (indent defun))
+  (when (and (listp group) (eq (car group) '\`))
+    (setq group (eval group)))
+  (if (macrop 'transient-define-group)
+      `(transient-define-group ,symbol ,group)
+    ;; Evaluate at compile-time so `transient-define-prefix' can find definitions.
+    `(eval-and-compile (defconst ,symbol ,group ,docstring))))
 
-(eval-and-compile
-  (defconst macports-core--exit-status-flags-infix
-    ["Exit status"
-     ("p" "Proceed on error" "-p")]
-    "Exit status flags for the `port` command."))
+(macports--define-group
+  macports-core--output-flags-infix
+  ["Output"
+   ("v" "Verbose" "-v")
+   ("d" "Debug" "-d")
+   ("q" "Quiet" "-q")
+   ("N" "Non-interactive" "-N")]
+  "Global flags for the `port` command.")
+
+(macports--define-group
+  macports-core--sources-flags-infix
+  ["Sources"
+   ("s" "Source-only mode" "-s")
+   ("b" "Binary-only mode" "-b")]
+  "Source-related flags for the `port` command.")
+
+(macports--define-group
+  macports-core--exit-status-flags-infix
+  ["Exit status"
+   ("p" "Proceed on error" "-p")]
+  "Exit status flags for the `port` command.")
 
 ;;;###autoload (autoload 'macports "macports-core" nil t)
 (transient-define-prefix macports-selfupdate ()
@@ -122,15 +138,18 @@
    "*macports-selfupdate*"))
 
 ;; These are flags relevant for reclaim but accepted only in the global scope
-(eval-and-compile
-  (defconst macports-core--reclaim-global-flags-infix
-    ["Execution"
-     ("y" "Dry run" "-y")]))
+(macports--define-group
+  macports-core--reclaim-global-flags-infix
+  ["Execution"
+   ("y" "Dry run" "-y")])
 
 (eval-and-compile
-  (defconst macports-core--reclaim-flags-infix
-    ["Reclaim"
-     ("k" "Keep build deps" "--keep-build-deps")]))
+  (defconst macports-core--reclaim-flags
+    '(("k" "Keep build deps" "--keep-build-deps"))))
+
+(macports--define-group
+  macports-core--reclaim-flags-infix
+  `["Reclaim" ,@macports-core--reclaim-flags])
 
 ;;;###autoload (autoload 'macports "macports-core" nil t)
 (transient-define-prefix macports-reclaim ()
@@ -143,7 +162,7 @@
 (defun macports-core--reclaim-exec (args)
   "Run MacPorts reclaim with ARGS."
   (interactive (list (transient-args transient-current-command)))
-  (let* ((all-reclaim-args (mapcar #'caddr (substring macports-core--reclaim-flags-infix 1)))
+  (let* ((all-reclaim-args (mapcar #'caddr macports-core--reclaim-flags))
          (reclaim-args (seq-filter (lambda (e) (member e args)) all-reclaim-args))
          (global-args (seq-filter (lambda (e) (not (member e reclaim-args))) args)))
     (macports-core--exec
@@ -151,12 +170,12 @@
      "*macports-reclaim*")))
 
 ;; These are flags relevant for install but accepted only in the global scope
-(eval-and-compile
-  (defconst macports-core--installation-global-flags-infix
-    ["Installation"
-     ("n" "Don't follow dependencies in upgrade" "-n")
-     ("u" "Uninstall inactive ports" "-u")
-     ("y" "Dry run" "-y")]))
+(macports--define-group
+  macports-core--installation-global-flags-infix
+  ["Installation"
+   ("n" "Don't follow dependencies in upgrade" "-n")
+   ("u" "Uninstall inactive ports" "-u")
+   ("y" "Dry run" "-y")])
 
 ;; TODO: Support choosing variants
 ;;;###autoload (autoload 'macports "macports-core" nil t)
@@ -183,14 +202,17 @@ PORTS is a list of port names; if not supplied, choose interactively."
    "*macports-install*"))
 
 (eval-and-compile
-  (defconst macports-core--clean-flags-infix
-    ["Clean"
-     ("A" "All" "--all")
-     ("w" "Work" "--work")
-     ("D" "Dist" "--dist")
-     ("a" "Archive" "--archive")
-     ("l" "Logs" "--logs")]
-    "Flags for the `port clean` subcommand."))
+  (defconst macports-core--clean-flags
+    '(("A" "All" "--all")
+      ("w" "Work" "--work")
+      ("D" "Dist" "--dist")
+      ("a" "Archive" "--archive")
+      ("l" "Logs" "--logs"))))
+
+(macports--define-group
+  macports-core--clean-flags-infix
+  `["Clean" ,@macports-core--clean-flags]
+  "Flags for the `port clean` subcommand.")
 
 ;;;###autoload (autoload 'macports "macports-core" nil t)
 (transient-define-prefix macports-clean (port)
@@ -215,7 +237,7 @@ If PORT not supplied, choose interactively."
   (interactive (list
                 (oref transient-current-prefix scope)
                 (transient-args transient-current-command)))
-  (let* ((all-clean-args (mapcar #'caddr (substring macports-core--clean-flags-infix 1)))
+  (let* ((all-clean-args (mapcar #'caddr macports-core--clean-flags))
          (clean-args (seq-filter (lambda (e) (member e args)) all-clean-args))
          (global-args (seq-filter (lambda (e) (not (member e clean-args))) args)))
     (macports-core--exec
@@ -241,13 +263,13 @@ This is quite slow!"
      (split-string (shell-command-to-string cmd)))))
 
 ;; These are flags relevant for upgrade but accepted only in the global scope
-(eval-and-compile
-  (defconst macports-core--upgrade-global-flags-infix
-    ["Upgrade"
-     ("n" "Don't follow dependencies in upgrade" "-n")
-     ("r" "Also upgrade dependents" "-R")
-     ("u" "Uninstall inactive ports" "-u")
-     ("y" "Dry run" "-y")]))
+(macports--define-group
+  macports-core--upgrade-global-flags-infix
+  ["Upgrade"
+   ("n" "Don't follow dependencies in upgrade" "-n")
+   ("r" "Also upgrade dependents" "-R")
+   ("u" "Uninstall inactive ports" "-u")
+   ("y" "Dry run" "-y")])
 
 ;;;###autoload (autoload 'macports "macports-core" nil t)
 (transient-define-prefix macports-upgrade (&optional ports)
@@ -274,10 +296,13 @@ This is quite slow!"
    "*macports-upgrade*"))
 
 (eval-and-compile
-  (defconst macports-core--fetch-flags-infix
-    ["Fetch"
-     ("N" "No mirrors" "--no-mirrors")]
-    "Flags for the `port fetch` subcommand."))
+  (defconst macports-core--fetch-flags
+    '(("N" "No mirrors" "--no-mirrors"))))
+
+(macports--define-group
+  macports-core--fetch-flags-infix
+  `["Fetch" ,@macports-core--fetch-flags]
+  "Flags for the `port fetch` subcommand.")
 
 ;;;###autoload (autoload 'macports "macports-core" nil t)
 (transient-define-prefix macports-fetch (port)
@@ -298,7 +323,7 @@ If PORT not supplied, choose interactively."
   (interactive (list
                 (oref transient-current-prefix scope)
                 (transient-args transient-current-command)))
-  (let* ((all-fetch-args (mapcar #'cl-caddr (substring macports-core--fetch-flags-infix 1)))
+  (let* ((all-fetch-args (mapcar #'cl-caddr macports-core--fetch-flags))
          (fetch-args (seq-filter (lambda (e) (member e args)) all-fetch-args))
          (global-args (seq-filter (lambda (e) (not (member e fetch-args))) args)))
     (macports-core--exec
