@@ -66,7 +66,8 @@ prettify: el_files := find . -name '*.el' -print0
 prettify: | $(elpa_dir)
 	$(el_files) | xargs -P 0 -0 -I {} \
 		$(run_emacs) \
-		$(addprefix -l ,$(dependencies)) \
+		--eval '(setq load-prefer-newer t)' \
+		$(addprefix -l ,$(all_dependencies) macports) \
 		{} \
 		--eval '(setq indent-tabs-mode nil tab-width 4 require-final-newline t)' \
 		--eval '(indent-region (point-min) (point-max))' \
