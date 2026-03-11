@@ -268,7 +268,7 @@ This is quite slow!"
   ["Upgrade"
    ("n" "Don't follow dependencies in upgrade" "-n")
    ("r" "Also upgrade dependents" "-R")
-   ("u" "Uninstall inactive ports" "-u")
+   ("U" "Uninstall inactive ports" "-u")
    ("y" "Dry run" "-y")])
 
 ;;;###autoload (autoload 'macports "macports-core" nil t)
