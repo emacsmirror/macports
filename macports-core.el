@@ -323,7 +323,7 @@ If PORT not supplied, choose interactively."
   (interactive (list
                 (oref transient-current-prefix scope)
                 (transient-args transient-current-command)))
-  (let* ((all-fetch-args (mapcar #'cl-caddr macports-core--fetch-flags))
+  (let* ((all-fetch-args (mapcar #'caddr macports-core--fetch-flags))
          (fetch-args (seq-filter (lambda (e) (member e args)) all-fetch-args))
          (global-args (seq-filter (lambda (e) (not (member e fetch-args))) args)))
     (macports-core--exec
@@ -394,7 +394,7 @@ function should accept two parameters:
 - The process's exit code
 
 Inspired by https://lists.gnu.org/archive/html/help-gnu-emacs/2008-06/msg00032.html"
-  (let ((buf (macports-core--gen-temp-buffer)))
+  (let ((buf (generate-new-buffer " *temp*" t)))
     (set-process-sentinel
      (start-process "Shell" buf shell-file-name shell-command-switch command)
      (lambda (process _signal)
@@ -406,14 +406,6 @@ Inspired by https://lists.gnu.org/archive/html/help-gnu-emacs/2008-06/msg00032.h
              (funcall callback output exit-status)))
          (kill-buffer buf))))
     buf))
-
-(defun macports-core--gen-temp-buffer ()
-  "Get a temp buffer. Adapter for pre-Emacs 28 compatibility."
-  (let ((args '(" *temp*")))
-    (when (and (fboundp 'func-arity)
-               (> (cdr (func-arity #'generate-new-buffer)) 1))
-      (setq args `(,@args t)))
-    (apply #'generate-new-buffer args)))
 
 (provide 'macports-core)
 ;;; macports-core.el ends here

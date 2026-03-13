@@ -387,8 +387,8 @@ Acts within the region when active, otherwise on entire buffer."
     (goto-char (point-min))
     (let ((inhibit-read-only t))
       (while (not (eobp))
-        (let ((tag (gethash (tabulated-list-get-id) tags)))
-          (when tag (tabulated-list-put-tag tag)))
+        (when-let ((tag (gethash (tabulated-list-get-id) tags)))
+          (tabulated-list-put-tag tag))
         (forward-line)))))
 
 (defun macports-installed-refresh ()
